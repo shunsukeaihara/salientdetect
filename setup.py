@@ -17,7 +17,7 @@ ext_modules = [Extension(
 setup(
     name="salientdetect",
     description='Slient Region Detector from Image',
-    version="1.0.0",
+    version="0.0.2",
     long_description=open('README.rst').read(),
     packages=find_packages(),
     install_requires=["numpy", 'nose', 'cython', 'scikit-image'],
