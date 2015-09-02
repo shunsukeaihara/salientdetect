@@ -7,7 +7,7 @@ from libc.math cimport sqrt, exp
 from libcpp.vector cimport vector
 from libcpp.pair cimport pair
 from libcpp.unordered_map cimport unordered_map as map
-from cython.operator cimport dereference as derefit, preincrement as incit
+from cython.operator cimport dereference as deref, preincrement as pinc
 from libc.stdlib cimport malloc, free
 
 
@@ -45,8 +45,8 @@ cdef void label_to_regions(int[:, ::1] &labels, map[int, coordary*] &region_map)
 @cython.boundscheck(False) 
 @cython.wraparound(False)
 cdef void calc_region_centroid(map[int, coordary*] &region_map,  map[int, DoubleCoordinate*] &centroid_map):
-    cdef coordary *ary
-    cdef vector[Coordinate*].iterator ait
+    cdef coordary ary
+    cdef Coordinate *coord
     cdef DoubleCoordinate *centroid
     cdef int count
     cdef map[int, coordary*].iterator it = region_map.begin()
@@ -55,18 +55,16 @@ cdef void calc_region_centroid(map[int, coordary*] &region_map,  map[int, Double
         centroid = <DoubleCoordinate *>malloc(sizeof(DoubleCoordinate))
         centroid.x = 0.0
         centroid.y = 0.0
-        ary = derefit(it).second
-        ait = ary.begin()
-        while ait != ary.end():
-            centroid.x += derefit(ait).x
-            centroid.y += derefit(ait).y
+        ary = deref(deref(it).second)
+        for coord in ary:
+            centroid.x += coord.x
+            centroid.y += coord.y
             count += 1
-            incit(ait)
         # calc avg
         centroid.x = centroid.x / count
         centroid.y = centroid.y /count
-        centroid_map[derefit(it).first] = centroid
-        incit(it)
+        centroid_map[deref(it).first] = centroid
+        pinc(it)
 
 
 @cython.boundscheck(False) 
@@ -92,18 +90,18 @@ cdef void calc_region_score(UInt8[:,:,::1] &img, map[int, coordary*] &regions,
     ait = regions.begin()
     while ait != regions.end():
         score = 0.0
-        regA = derefit(ait).first
+        regA = deref(ait).first
         if regions[regA].size() < 100:  # ToDo: remove hard-coded magic number
-            incit(ait)
+            pinc(ait)
             continue
         bit = regions.begin()
         while bit != regions.end():
-            regB = derefit(bit).first
+            regB = deref(bit).first
             if regA == regB:
-                incit(bit)
+                pinc(bit)
                 continue
             elif regions[regB].size() < 100:  # ToDo: remove hard-coded magic number
-                incit(bit)
+                pinc(bit)
                 continue
             else:
                 # ToDo: caching
@@ -113,9 +111,9 @@ cdef void calc_region_score(UInt8[:,:,::1] &img, map[int, coordary*] &regions,
                 d = weight * calc_region_distance(region_histgram[regA],
                                                   region_histgram[regB], color_dist) * (float(regions[regB].size())/pixels)
                 score += d
-            incit(bit)
+            pinc(bit)
         region_scores[regA] = score
-        incit(ait)
+        pinc(ait)
 
 @cython.boundscheck(False) 
 @cython.wraparound(False)
@@ -225,22 +223,18 @@ cdef void calc_region_histgram(map[int, coordary*] &regions, int[:, ::1] &color_
     cdef double *pdf
     cdef coordary *coords
     cdef Coordinate *coord
-    cdef vector[Coordinate*].iterator cit
     cdef map[int, coordary*].iterator it = regions.begin()
     while it != regions.end():
-        reg_id = derefit(it).first
-        coords = derefit(it).second
+        reg_id = deref(it).first
+        coords = deref(it).second
         pdf = <double *>malloc(1728 * sizeof(double))
         for i in range(1728):
             pdf[i] = 0.0
-        cit = coords.begin()
-        while cit != coords.end():
-            coord = derefit(cit)
+        for coord in deref(coords):
             pdf[color_idx[coord.y, coord.x]] += 1.0
-            incit(cit)
         normalize_dvec(pdf, 1728)
         hist[reg_id] = pdf
-        incit(it)
+        pinc(it)
 
 
 def calc_saliency_score(np.ndarray[np.uint8_t, ndim=3, mode="c"] img,
@@ -260,37 +254,31 @@ def calc_saliency_score(np.ndarray[np.uint8_t, ndim=3, mode="c"] img,
 
     calc_region_score(img, regions, region_centroid, region_histgram, color_dist_mat, scores)
     ret = {}
-    cdef vector[Coordinate*].iterator cvecit
-    cdef Coordinate* coor
+    cdef Coordinate* coord
     cdef double score
     for reg_id, score in scores.items():
         ls = []
-        cvecit = regions[reg_id].begin()
-        while cvecit != regions[reg_id].end():
-            coor = derefit(cvecit)
-            ls.append((coor.x, coor.y))
-            incit(cvecit)
+        for coord in deref(regions[reg_id]):
+            ls.append((coord.x, coord.y))
         ret[score]=ls
 
-
+    # finalize
     cdef map[int, double*].iterator it2 = region_histgram.begin()
     while it2 != region_histgram.end():
-        free(derefit(it2).second)
-        incit(it2)
-
+        free(deref(it2).second)
+        pinc(it2)
+    
     cdef map[int, DoubleCoordinate*].iterator it3 = region_centroid.begin()
     while it3 != region_centroid.end():
-        free(derefit(it3).second)
-        incit(it3)
+        free(deref(it3).second)
+        pinc(it3)
     
     cdef coordary *ary
     cdef map[int, coordary*].iterator it4 = regions.begin()
     while it4 != regions.end():
-        ary = derefit(it4).second
-        cvecit = ary.begin()
-        while cvecit != ary.end():
-            free(derefit(cvecit))
-            incit(cvecit)
+        ary = deref(it4).second
+        for coord in deref(ary):
+            free(coord)
         del ary
-        incit(it4)
+        pinc(it4)
     return ret
