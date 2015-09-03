@@ -240,7 +240,7 @@ cdef void calc_region_histgram(map[int, coordary*] &regions, int[:, ::1] &color_
 def calc_saliency_score(np.ndarray[np.uint8_t, ndim=3, mode="c"] img,
                         np.ndarray[np.int_t, ndim=2, mode="c"] segment_labels,
                         np.ndarray[np.float64_t, ndim=2, mode="c"] color_dist_mat):
-    reduced = np.trunc(img/21.4).astype(np.uint8)
+    reduced = np.trunc(img/23).astype(np.uint8)
     shape = reduced.shape
     cdef int[:, ::1] color_idx = np.zeros((shape[0], shape[1]), dtype=np.int32)
     cdef map[int, coordary*] regions
